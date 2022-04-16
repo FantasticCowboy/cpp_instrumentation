@@ -16,36 +16,29 @@
 
 using namespace std;
 
-std::string random_string()
-{
-     std::string str("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
-
-     std::random_device rd;
-     std::mt19937 generator(rd());
-
-     std::shuffle(str.begin(), str.end(), generator);
-
-     return str.substr(0, 32);    // assumes 32 < number of characters in str         
-}
 
 class Instrument {
 private:
-    map<string, int> keyToCounter;
-    map<string, int> previousCounterValue;
-    string file;
-    mutex m;
-    unique_ptr<thread> statsThread;
 
-
+    // static so that stats collected in one thread
+    static map<string, int> keyToCounter;
+    static map<string, int> previousCounterValue;
+    static string file;
+    static mutex m;
+    static unique_ptr<thread> statsThread;
 
     
 public:
     Instrument(){
-        file = "stats_" + random_string() + ".out";  
-        dumpStats();
+        m.lock();
+        file = "stats.out";
         Instrument* ptr = this;
-        thread* tmp = new thread(&Instrument::writeStats, this);
-        statsThread.reset(tmp);
+        // if it hasn't been started start it
+        if(!statsThread) {
+            thread* tmp = new thread(&Instrument::writeStats);
+            statsThread.reset(tmp);
+        }
+        m.unlock();
     }
 
     ~Instrument(){
@@ -53,14 +46,14 @@ public:
 
     }
 
-    void writeStats(){
+    static void writeStats(){
         while (true){
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             dumpStats();
         }
     }
 
-    void dumpStats(){
+    static void dumpStats(){
         m.lock();
         ofstream openedFile;
         openedFile.open(file, std::ios_base::app);
@@ -81,6 +74,11 @@ public:
     }
 };
 
+map<string, int>     Instrument::keyToCounter;
+map<string, int>     Instrument::previousCounterValue;
+string               Instrument::file;
+mutex                Instrument::m;
+unique_ptr<thread>   Instrument::statsThread;
 
 
 
